@@ -261,6 +261,8 @@ function initializeAndRun() {
 
     var headers = new Headers();
     headers.append("uid", localStorage.getUserInfoGiven);
+    headers.append("sentence", currentSentence);
+
 
     fetch('/upload/' + directory, { method: 'POST', headers, body: recording })
       .then(function(response) {

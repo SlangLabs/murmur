@@ -62,7 +62,28 @@ function startServer() {
     process.exit(1);
   }
 
-  var db = new sqlite3.Database(config.db);
+  var db = new sqlite3.Database(config.db,  (err) => {
+    if (err) {
+      console.error(err.message);
+      
+    } else {
+      console.log('Connected to the user database.');
+
+      db.serialize(function() {
+        var stmt = db.prepare(
+          "CREATE TABLE users ( "+
+          "id integer PRIMARY KEY,"+
+          "gender text NOT NULL,"+
+          "age text NOT NULL,"+
+          "lang1 text NULL," +
+          "lang2 text NULL)");
+        stmt.run();
+        stmt.finalize();
+    });
+
+    }
+  });
+  // var db = new sqlite3.Database(':memory:');
 
   var lex = LEX.create({
     configDir: __dirname + '/letsencrypt.conf',
@@ -122,7 +143,7 @@ function startServer() {
     fs.writeFile(path, request.body, {}, function(err) {
       response.send('Thanks for your contribution!');
       if (err) {
-        console.warn(err);
+       return console.warn(err);
       }
       else {
         console.log('wrote file:', path);
@@ -133,7 +154,7 @@ function startServer() {
   app.get('/data/', function(request,response) {
       db.serialize(function() {
           var id = Math.random() * Date.now() * (request.headers.gender + request.headers.age + request.headers.langs1 + request.headers.langs2);
-          var stmt = db.prepare("INSERT INTO usr VALUES (?,?,?,?,?)");
+          var stmt = db.prepare("INSERT INTO users VALUES (?,?,?,?,?)");
           stmt.run(id, request.headers.gender, request.headers.age, request.headers.langs1, request.headers.langs2);
           stmt.finalize();
           response.send({ uid: id });
@@ -142,7 +163,7 @@ function startServer() {
 
     app.get('/data/ios', function(request,response) {
         db.serialize(function() {
-            var stmt = db.prepare("INSERT INTO usr VALUES (?,?,?,?,?)");
+            var stmt = db.prepare("INSERT INTO users VALUES (?,?,?,?,?)");
             stmt.run(request.headers.id, request.headers.gender, request.headers.age, request.headers.langs1, request.headers.langs2);
             stmt.finalize();
             response.send({ uid: request.headers.id });
