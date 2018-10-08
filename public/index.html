@@ -1,10 +1,11 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1">
+  
   <meta charset="utf-8" />
   <title>Voice Bank</title>
   <link rel="stylesheet" href="fira.css">
-  <script defer src="index.js"></script>
+  <script  type="text/javascript" src="media_polyfill.js"></script>
   <style>
 
 body {
@@ -279,7 +280,7 @@ body.recording .recording-indicator {
 }
 
 .footer{
-    position:fixed;
+    /* position:fixed; */
     bottom:0;
     height:auto;
     width:100%;
@@ -442,6 +443,8 @@ a:visited {
      <div class="footeritem"><a href="https://www.mozilla.org/en-US/privacy/websites/#cookies" target="_blank">Cookies</a></div>
 
  </div>
+ <script type="text/javascript" src="recorder.js"></script>
+ <script defer src="index.js"></script>
 
 </body>
 </html>

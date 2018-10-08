@@ -1,0 +1,9 @@
+{
+  "default_locale": "en",
+  "permissions": {
+    "audio-capture": {
+      "description": "Required to capture your voice"
+    }
+  },
+  "orientation": "portrait"
+}

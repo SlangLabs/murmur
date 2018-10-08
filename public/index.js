@@ -46,7 +46,8 @@ checkPlatformSupport()
 
 function checkPlatformSupport() {
   function isWebAudioSupported() {
-    return typeof window.AudioContext === 'function'
+    return typeof window.AudioContext  === 'function' || typeof window.webkitAudioContext  === 'function'
+    // return true;  
   }
 
   function isGetUserMediaSupported() {
@@ -55,10 +56,12 @@ function checkPlatformSupport() {
       navigator.webkitGetUserMedia ||
       navigator.mozGetUserMedia;
     return typeof gum === 'function';
+    // return true;
   }
 
   function isMediaRecorderSupported() {
-    return typeof window.MediaRecorder === 'function';
+    // return typeof window.MediaRecorder === 'function';
+    return typeof window.Recorder === 'function';
   }
 
   if (!isGetUserMediaSupported() || 
@@ -254,6 +257,7 @@ function initializeAndRun() {
 
   // Upload a recording using the fetch API to do an HTTP POST
   function upload(directory, recording) {
+    // console.log(recording);
     if (!recording.type) {
       // Chrome doesn't give the blob a type
       recording = new Blob([recording], {type:'audio/webm;codecs=opus'});
@@ -321,6 +325,7 @@ function RecordingScreen(element, microphone) {
   };
 
   // Build the WebAudio graph we'll be using
+  var AudioContext = window.AudioContext || window.webkitAudioContext;
   var audioContext = new AudioContext();
   var sourceNode = audioContext.createMediaStreamSource(microphone);
   var volumeNode = audioContext.createGain();
@@ -336,7 +341,8 @@ function RecordingScreen(element, microphone) {
   volumeNode.connect(analyzerNode);
   analyzerNode.connect(outputNode);
   // and set up the recorder
-  var recorder = new MediaRecorder(outputNode.stream);
+  // var recorder = new MediaRecorder(outputNode.stream);
+  var recorder = new Recorder(sourceNode);
 
   // Set up the analyzer node, and allocate an array for its data
   // FFT size 64 gives us 32 bins. But those bins hold frequencies up to
@@ -399,7 +405,8 @@ function RecordingScreen(element, microphone) {
       // We want to be able to record up to 60s of audio in a single blob.
       // Without this argument to start(), Chrome will call dataavailable
       // very frequently.
-      recorder.start(20000);
+      // recorder.start(200000);
+      recorder.record();
       document.querySelector('#divanim').className = 'recording-indicator';
       document.body.className = 'recording';
     }
@@ -407,28 +414,44 @@ function RecordingScreen(element, microphone) {
 
   function stopRecording() {
       if (recording) {
+      recorder.stop();
       canuploadandplay = true;
       document.querySelector('#levels').hidden = true;
       clockstop();
       recording = false;
       document.body.className = '';
       recordButton.className = 'disabled'; // disabled 'till after the beep
-      recorder.ondataavailable = function(event) {
-        // Only call us once
-        recorder.ondataavailable = null;
+      // recorder.ondataavailable = function(event) {
+      //   // Only call us once
+      //   // recorder.ondataavailable = null;
 
-        // Beep to tell the user the recording is done
+      //   // Beep to tell the user the recording is done
+      //   beep(STOP_BEEP_HZ, STOP_BEEP_S).then(function() {
+      //     // Broadcast an event containing the recorded blob
+      //     // This will switch to the playback screen
+      //     element.dispatchEvent(new CustomEvent('record', {
+      //       detail: event.data
+      //     }));
+
+      //     recordButton.className = '';
+      //   });
+      // };
+
+       recorder.exportWAV(function(blob) {
+        // var url = URL.createObjectURL(blob);
+            // Beep to tell the user the recording is done
         beep(STOP_BEEP_HZ, STOP_BEEP_S).then(function() {
           // Broadcast an event containing the recorded blob
           // This will switch to the playback screen
           element.dispatchEvent(new CustomEvent('record', {
-            detail: event.data
+            detail: blob
           }));
 
           recordButton.className = '';
         });
-      };
-      recorder.stop();
+
+        });
+      recorder.clear();
 
       document.querySelector('#lblplay').style.color = "rgb(0,174,239)";
       document.querySelector('#lblsubmit').style.color = "rgb(0,174,239)";

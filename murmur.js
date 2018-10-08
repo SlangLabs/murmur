@@ -69,17 +69,45 @@ function startServer() {
     } else {
       console.log('Connected to the user database.');
 
-      db.serialize(function() {
-        var stmt = db.prepare(
-          "CREATE TABLE users ( "+
-          "id integer PRIMARY KEY,"+
-          "gender text NOT NULL,"+
-          "age text NOT NULL,"+
-          "lang1 text NULL," +
-          "lang2 text NULL)");
-        stmt.run();
-        stmt.finalize();
-    });
+      let sql = `SELECT * FROM users`;
+ 
+        db.all(sql, [], (err, rows) => {
+          if (err) {
+            console.log(err + "\n Creating one ...") ;
+            db.serialize(function() {
+                var stmt = db.prepare(
+                  "CREATE TABLE users ( "+
+                  "id integer PRIMARY KEY,"+
+                  "gender text NOT NULL,"+
+                  "age text NOT NULL,"+
+                  "lang1 text NULL," +
+                  "lang2 text NULL)");
+                stmt.run();
+                stmt.finalize();
+            });
+          } else {
+            console.log('Table user exists') ;
+          }
+          // rows.forEach((row) => {
+          //   console.log(row);
+          // });
+
+        });
+
+       
+
+
+    //   db.serialize(function() {
+    //     var stmt = db.prepare(
+    //       "CREATE TABLE users ( "+
+    //       "id integer PRIMARY KEY,"+
+    //       "gender text NOT NULL,"+
+    //       "age text NOT NULL,"+
+    //       "lang1 text NULL," +
+    //       "lang2 text NULL)");
+    //     stmt.run();
+    //     stmt.finalize();
+    // }); 
 
     }
   });
@@ -87,16 +115,16 @@ function startServer() {
 
   var lex = LEX.create({
     configDir: __dirname + '/letsencrypt.conf',
-    approveRegistration: function (hostname, approve) {
-      console.log("approveRegistration:", hostname);
-      if (hostname === config.letsEncryptHostname) {
-        approve(null, {
-          domains: [config.letsEncryptHostname],
-          email: config.letsEncryptEmailAddress,
-          agreeTos: true
-        });
-      }
-    }
+    // approveRegistration: function (hostname, approve) {
+    //   console.log("approveRegistration:", hostname);
+    //   if (hostname === config.letsEncryptHostname) {
+    //     approve(null, {
+    //       domains: [config.letsEncryptHostname],
+    //       email: config.letsEncryptEmailAddress,
+    //       agreeTos: true
+    //     });
+    //   }
+    // }
   });
 
   var app = express();
@@ -113,7 +141,7 @@ function startServer() {
   // When we get POSTs, handle the body like this
   app.use(bodyParser.raw({
     type: 'audio/*',
-    limit: 1*1024*1024  // max file size 1 mb
+    limit: 1*1024*1024*10  // max file size 10 mb
   }));
 
   // This is how we handle WAV file uploads
@@ -130,7 +158,9 @@ function startServer() {
       extension = '.webm';   // Chrome gives us opus in webm
     } else if (request.headers['content-type'].startsWith('audio/mp4a')) {
       extension = '.m4a'; // iOS gives us mp4a
-    }
+    } else if (request.headers['content-type'].startsWith('audio/wav')) {
+      extension = '.wav'; // iOS gives us mp4a
+    } 
 
     // if the folder does not exist, we create it
     var folder = uploaddir + "/" + dir + "/";
@@ -153,10 +183,11 @@ function startServer() {
 
   app.get('/data/', function(request,response) {
       db.serialize(function() {
-          var id = Math.random() * Date.now() * (request.headers.gender + request.headers.age + request.headers.langs1 + request.headers.langs2);
+          var id = Math.floor(Math.random() * Date.now() * (request.headers.gender + request.headers.age + request.headers.langs1 + request.headers.langs2));
           var stmt = db.prepare("INSERT INTO users VALUES (?,?,?,?,?)");
           stmt.run(id, request.headers.gender, request.headers.age, request.headers.langs1, request.headers.langs2);
           stmt.finalize();
+          console.log(id + ' ' + request.headers.gender+ '  ' +  request.headers.age+ '  ' +  request.headers.langs1+ '  ' +  request.headers.langs2);
           response.send({ uid: id });
       });
   });
