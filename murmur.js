@@ -2,6 +2,7 @@ var fs = require('fs');
 
 var uploaddir = __dirname + '/uploads';  // Upload directory
 var directoryToSentence = {};            // dirname to sentence
+var language;
 
 // Here's the program:
 readConfigFile();
@@ -14,19 +15,23 @@ startServer();
  */
 function readConfigFile() {
   var configFile = __dirname + '/screenplays.txt';
-  var totalItens = 0;
+  var totalItems = 0;
   try {
     fs.readFileSync(configFile, 'utf8')
       .trim()
       .split('\n')
       .forEach(function(line) {
-        var trimmed = line.trim();
-        if (trimmed === '' || trimmed[0] === '#') {
-          return;  // ignore blanks and comments
+        if(totalItems == 0)
+        {
+            language = line.trim();
         }
-
-        directoryToSentence[totalItens++] = trimmed;
-        //directories.push(directory);
+        else{
+            var trimmed = line.trim();
+            if (trimmed === '' || trimmed[0] === '#') {
+              return;  // ignore blanks and comments
+            }
+        }
+        directoryToSentence[totalItems++] = trimmed;
       });
   }
   catch(e) {
@@ -48,7 +53,9 @@ function startServer() {
   var https = require('spdy');
   var express = require('express');
   var bodyParser = require('body-parser');
-  var sqlite3 = require('sqlite3').verbose();
+  var AWS = require('aws-sdk')
+
+//  var sqlite3 = require('sqlite3').verbose();
 
   // Read the server configuration file. It must define
   // letsEncryptHostname and letsEncryptEmailAddress for the
@@ -61,40 +68,40 @@ function startServer() {
     console.error("Exiting");
     process.exit(1);
   }
+    //TODO: if need arise for storing user data in sqlite db
+//  var db = new sqlite3.Database(config.db,  (err) => {
+//    if (err) {
+//      console.error(err.message);
+//
+//    } else {
+//      console.log('Connected to the user database.');
+//
+//      let sql = `SELECT * FROM users`;
+//
+//        db.all(sql, [], (err, rows) => {
+//          if (err) {
+//            console.log(err + "\n Creating one ...") ;
+//            db.serialize(function() {
+//                var stmt = db.prepare(
+//                  "CREATE TABLE users ( "+
+//                  "id integer PRIMARY KEY,"+
+//                  "gender text NOT NULL,"+
+//                  "age text NOT NULL,"+
+//                  "lang1 text NULL," +
+//                  "lang2 text NULL)");
+//                stmt.run();
+//                stmt.finalize();
+//            });
+//          } else {
+//            console.log('Table user exists') ;
+//          }
+//          // rows.forEach((row) => {
+//          //   console.log(row);
+//          // });
+//
+//        });
 
-  var db = new sqlite3.Database(config.db,  (err) => {
-    if (err) {
-      console.error(err.message);
-      
-    } else {
-      console.log('Connected to the user database.');
 
-      let sql = `SELECT * FROM users`;
- 
-        db.all(sql, [], (err, rows) => {
-          if (err) {
-            console.log(err + "\n Creating one ...") ;
-            db.serialize(function() {
-                var stmt = db.prepare(
-                  "CREATE TABLE users ( "+
-                  "id integer PRIMARY KEY,"+
-                  "gender text NOT NULL,"+
-                  "age text NOT NULL,"+
-                  "lang1 text NULL," +
-                  "lang2 text NULL)");
-                stmt.run();
-                stmt.finalize();
-            });
-          } else {
-            console.log('Table user exists') ;
-          }
-          // rows.forEach((row) => {
-          //   console.log(row);
-          // });
-
-        });
-
-       
 
 
     //   db.serialize(function() {
@@ -107,10 +114,10 @@ function startServer() {
     //       "lang2 text NULL)");
     //     stmt.run();
     //     stmt.finalize();
-    // }); 
+    // });
 
-    }
-  });
+//    }
+//  });
   // var db = new sqlite3.Database(':memory:');
 
   var lex = LEX.create({
@@ -147,7 +154,7 @@ function startServer() {
   // This is how we handle WAV file uploads
   app.post('/upload/:dir', function(request, response) {
     // user id
-    var uid = request.headers.uid
+    var uid = Math.floor(Math.random() * Date.now())
     // the folder we should write is the sentence hash
     var dir = request.params.dir;
     // the sentence itself
@@ -160,7 +167,7 @@ function startServer() {
       extension = '.m4a'; // iOS gives us mp4a
     } else if (request.headers['content-type'].startsWith('audio/wav')) {
       extension = '.wav'; // iOS gives us mp4a
-    } 
+    }
 
     // if the folder does not exist, we create it
     var folder = uploaddir + "/" + dir + "/";
@@ -169,6 +176,42 @@ function startServer() {
       fs.writeFileSync(folder + '/sentence.txt', sentence);
     }
 
+    var bucketName = process.env.BUCKET_NAME;
+    var api_key = process.env.AWS_ACCESS_KEY;
+    var secretKey= process.env.AWS_ACCESS_SECRET;
+
+    var s3_path = language+'/' + dir
+    var key = s3_path + '/' + uid + extension;
+    var sentence_key = s3_path + '/sentence.txt';
+
+
+
+    var s3 = new AWS.S3({
+        accessKeyId: api_key,
+        secretAccessKey: secretKey,
+    });
+
+  var params = [{
+            Bucket: bucketName,
+            Key: sentence_key,
+            Body: sentence
+        },
+        {
+            Bucket: bucketName,
+            Key: key,
+            Body: request.body
+        }];
+
+        for(var i=0;i<params.length;i++)
+        {
+            s3.putObject(params[i], function (perr, pres) {
+            if (perr) {
+                console.log("Error uploading data: ", perr);
+            } else {
+                console.log("Successfully uploaded data to myBucket/myKey");
+            }
+        });
+        }
     var path = folder  + uid  + extension;
     fs.writeFile(path, request.body, {}, function(err) {
       response.send('Thanks for your contribution!');
@@ -176,30 +219,32 @@ function startServer() {
        return console.warn(err);
       }
       else {
+
         console.log('wrote file:', path);
       }
     });
   });
 
-  app.get('/data/', function(request,response) {
-      db.serialize(function() {
-          var id = Math.floor(Math.random() * Date.now() * (request.headers.gender + request.headers.age + request.headers.langs1 + request.headers.langs2));
-          var stmt = db.prepare("INSERT INTO users VALUES (?,?,?,?,?)");
-          stmt.run(id, request.headers.gender, request.headers.age, request.headers.langs1, request.headers.langs2);
-          stmt.finalize();
-          console.log(id + ' ' + request.headers.gender+ '  ' +  request.headers.age+ '  ' +  request.headers.langs1+ '  ' +  request.headers.langs2);
-          response.send({ uid: id });
-      });
-  });
+    //TODO: if need arise for storing user data in sqlite db
+//  app.get('/data/', function(request,response) {
+//      db.serialize(function() {
+//          var id = Math.floor(Math.random() * Date.now() * (request.headers.gender + request.headers.age + request.headers.langs1 + request.headers.langs2));
+//          var stmt = db.prepare("INSERT INTO users VALUES (?,?,?,?,?)");
+//          stmt.run(id, request.headers.gender, request.headers.age, request.headers.langs1, request.headers.langs2);
+//          stmt.finalize();
+//          console.log(id + ' ' + request.headers.gender+ '  ' +  request.headers.age+ '  ' +  request.headers.langs1+ '  ' +  request.headers.langs2);
+//          response.send({ uid: id });
+//      });
+//  });
 
-    app.get('/data/ios', function(request,response) {
-        db.serialize(function() {
-            var stmt = db.prepare("INSERT INTO users VALUES (?,?,?,?,?)");
-            stmt.run(request.headers.id, request.headers.gender, request.headers.age, request.headers.langs1, request.headers.langs2);
-            stmt.finalize();
-            response.send({ uid: request.headers.id });
-        });
-    });
+//    app.get('/data/ios', function(request,response) {
+//        db.serialize(function() {
+//            var stmt = db.prepare("INSERT INTO users VALUES (?,?,?,?,?)");
+//            stmt.run(request.headers.id, request.headers.gender, request.headers.age, request.headers.langs1, request.headers.langs2);
+//            stmt.finalize();
+//            response  .send({ uid: request.headers.id });
+//        });
+//    });
 
   // In test mode, just run the app over http to localhost:8000
   if (process.argv[2] === 'test') {
@@ -222,3 +267,5 @@ function startServer() {
                      LEX.createAcmeResponder(lex, app))
     .listen(config.httpsPort || 443);
 }
+
+

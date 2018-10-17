@@ -7,6 +7,7 @@ var SILENCE_DURATION = 1.5;  // How many seconds of quiet before stop recording
 var STOP_BEEP_HZ = 440;      // Frequency and duration of beep
 var STOP_BEEP_S = .3;
 var rightside = true;
+var n = -1;
 
 // The microphone stream we get from getUserMedia
 var microphone;
@@ -34,9 +35,9 @@ var ERR_DATA_FAILED = 'Submitting your profile data failed. ' +
 // This is the program startup sequence.
 checkPlatformSupport()
   .then(getConsent)
-  .then(getLangs)
-  .then(populatelangs)
-  .then(getUserInfo)
+//  .then(getLangs)
+//  .then(populatelangs)
+//  .then(getUserInfo)
   .then(getMicrophone)
   .then(rememberMicrophone)
   .then(getSentences)
@@ -92,54 +93,56 @@ function getConsent() {
       resolve();
     };
   });
+
+
 }
 
-function getUserInfo(){
-  return new Promise(function(resolve, reject) {
+//function getUserInfo(){
+//  return new Promise(function(resolve, reject) {
     // If the user has already send info, then we're done
-    if (localStorage.getUserInfoGiven) {
-      resolve();
-      return;
-    }
+//    if (localStorage.getUserInfoGiven) {
+//      resolve();
+//      return;
+//    }
 
     // Otherwise, display the data screen and wait for a response
-    var dataScreen = document.querySelector('#data-screen');
-    dataScreen.hidden = false;
-    document.querySelector("#datasubmit").onclick = function() {
-      // validate that all controls are selected
-      var controls = ["#langs1", "#gender", "#age"];
-      for (var ctl in controls){
-          if (document.querySelector(controls[ctl]).selectedIndex <= 0) {
-            document.querySelector("#errorfill").hidden = false;
-            return;
-          }
-      }
-
-      var headers = new Headers();
-      headers.append("gender", document.querySelector('#gender').selectedIndex);
-      headers.append("age", document.querySelector('#age').selectedIndex);
-      headers.append("langs1", document.querySelector('#langs1').selectedIndex);
-      headers.append("langs2", document.querySelector('#langs2').selectedIndex);
-
-        fetch('/data', { method: 'GET', headers: headers})
-      .then(function(response) {
-          if (response.status !== 200) {
-              displayErrorMessage(ERR_DATA_FAILED + ' ' + response.status + ' ' +
-                  response.statusText);
-          } else {
-              response.text().then(function(text) {
-                  localStorage.getUserInfoGiven = JSON.parse(text).uid;
-              });
-              dataScreen.hidden = true;
-              resolve();
-          }
-      })
-      .catch(function() {
-          displayErrorMessage(ERR_UPLOAD_FAILED);
-      });
-    };
-  });
-}
+//    var dataScreen = document.querySelector('#data-screen');
+//    dataScreen.hidden = false;
+//    document.querySelector("#datasubmit").onclick = function() {
+//      // validate that all controls are selected
+//      var controls = ["#langs1", "#gender", "#age"];
+//      for (var ctl in controls){
+//          if (document.querySelector(controls[ctl]).selectedIndex <= 0) {
+//            document.querySelector("#errorfill").hidden = false;
+//            return;
+//          }
+//      }
+//
+//      var headers = new Headers();
+//      headers.append("gender", document.querySelector('#gender').selectedIndex);
+//      headers.append("age", document.querySelector('#age').selectedIndex);
+//      headers.append("langs1", document.querySelector('#langs1').selectedIndex);
+//      headers.append("langs2", document.querySelector('#langs2').selectedIndex);
+//
+//        fetch('/data', { method: 'GET', headers: headers})
+//      .then(function(response) {
+//          if (response.status !== 200) {
+//              displayErrorMessage(ERR_DATA_FAILED + ' ' + response.status + ' ' +
+//                  response.statusText);
+//          } else {
+//              response.text().then(function(text) {
+//                  localStorage.getUserInfoGiven = JSON.parse(text).uid;
+//              });
+//              dataScreen.hidden = true;
+//              resolve();
+//          }
+//      })
+//      .catch(function() {
+//          displayErrorMessage(ERR_UPLOAD_FAILED);
+//      });
+//    };
+//  });
+//}
 
 // Use getUserMedia() to get access to the user's microphone.
 // This can fail because the browser does not support it, or
@@ -176,11 +179,11 @@ function rememberMicrophone(stream) {
 // to ask the user to read
 function getSentences() { return fetch('sentences.json').then(function(r) { return r.json(); }); }
 
-function getLangs(){ return fetch('langs.txt').then( function(r) { return r.text(); }); }
+//function getLangs(){ return fetch('langs.txt').then( function(r) { return r.text(); }); }
 
-function populatelangs(langs){
-  document.querySelector('#langs1').innerHTML = document.querySelector('#langs2').innerHTML = langs;
-}
+//function populatelangs(langs){
+//  document.querySelector('#langs1').innerHTML = document.querySelector('#langs2').innerHTML = langs;
+//}
 
 // Once we get the json file, break the keys and values into two
 // parallel arrays.
@@ -244,15 +247,29 @@ function initializeAndRun() {
   // Here's how we switch to the recording screen
   function switchToRecordingScreen(needNewSentence) {
     // Pick a random sentence if we don't have one or need a new one
-    if (needNewSentence || !currentSentence) {
-      var n = Math.floor(Math.random() * sentences.length);
-      currentSentence = sentences[n];
-      currentDirectory = directories[n];
+    if (needNewSentence || !currentSentence || currentSentence !== 'undefined') {
+      if(n < sentences.length-1)
+      {
+        n++;
+        currentSentence = sentences[n];
+        currentDirectory = directories[n];
+        // Hide the playback screen (and release its audio) if it was displayed
+        // Show the recording screen
+        recordingScreen.show(currentSentence);
+      }
+      else{
+
+            endSession();  // call this when all given text is over
+
+      }
     }
 
-    // Hide the playback screen (and release its audio) if it was displayed
-    // Show the recording screen
-    recordingScreen.show(currentSentence);
+  }
+
+  function endSession(){
+    document.querySelector("#record-screen").hidden = true;
+    document.querySelector('#lastMessage').innerHTML = "Thank You for your contribution. Submitted Recordings this Session: " + (totalsess+1);
+    localStorage.clear(); // ask for consent again when user starts a new session
   }
 
   // Upload a recording using the fetch API to do an HTTP POST
@@ -310,10 +327,8 @@ function RecordingScreen(element, microphone) {
   };
 
   this.discards = function() {
-    element.querySelector('#playimg').src = "imgs/Triangle-09-off.png";
     element.querySelector('#submitimg').src = "imgs/CheckMark-off.png";
-      document.querySelector('#lblplay').style.color = "rgb(188,189,192)";
-      document.querySelector('#lblsubmit').style.color = "rgb(188,189,192)";
+    document.querySelector('#lblsubmit').style.color = "rgb(188,189,192)";
 
     canuploadandplay = false;
     this.recording = null;
@@ -362,7 +377,6 @@ function RecordingScreen(element, microphone) {
   var lastSoundTime;      // When was the last time we heard a sound?
 
   var recordButton = element.querySelector('#recordButton');
-  var playButton = element.querySelector('#playButton');
   var uploadButton = element.querySelector('#uploadButton');
   var canuploadandplay = false;
 
@@ -453,10 +467,8 @@ function RecordingScreen(element, microphone) {
         });
       recorder.clear();
 
-      document.querySelector('#lblplay').style.color = "rgb(0,174,239)";
       document.querySelector('#lblsubmit').style.color = "rgb(0,174,239)";
       document.querySelector('#divanim').className = 'stopped-indicator';
-      element.querySelector('#playimg').src = "imgs/Triangle-09-on.png";
       element.querySelector('#submitimg').src = "imgs/CheckMark-on.png";
     }
   }
@@ -574,12 +586,6 @@ function RecordingScreen(element, microphone) {
     if (!canuploadandplay)
       return;
     element.dispatchEvent(new CustomEvent('upload', {detail: this.recording}));
-  }.bind(this));
-
-  playButton.addEventListener('click', function() {
-    if (!canuploadandplay)
-          return;
-    this.player.play();
   }.bind(this));
 
 // CLOCK!

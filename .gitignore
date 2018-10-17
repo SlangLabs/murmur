@@ -37,3 +37,6 @@ node_modules
 # Don't check in the uploads dir
 uploads
 db/*
+
+editor file:
+.idea/*
