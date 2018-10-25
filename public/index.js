@@ -7,7 +7,7 @@ var SILENCE_DURATION = 1.5;  // How many seconds of quiet before stop recording
 var STOP_BEEP_HZ = 440;      // Frequency and duration of beep
 var STOP_BEEP_S = .3;
 var rightside = true;
-var n = -1;
+var sentence_index = -1;
 
 // The microphone stream we get from getUserMedia
 var microphone;
@@ -35,9 +35,8 @@ var ERR_DATA_FAILED = 'Submitting your profile data failed. ' +
 // This is the program startup sequence.
 checkPlatformSupport()
   .then(getConsent)
-//  .then(getLangs)
-//  .then(populatelangs)
-//  .then(getUserInfo)
+  .then(getUserInfo)
+  .then(select_language)
   .then(getMicrophone)
   .then(rememberMicrophone)
   .then(getSentences)
@@ -75,7 +74,7 @@ function checkPlatformSupport() {
   }
 }
 
-// Askz the user to agree to place the recordings in the public domain.
+// Ask the user to agree to place the recordings in the public domain.
 // They only have to agree once, and we remember using localStorage
 function getConsent() {
   return new Promise(function(resolve, reject) {
@@ -93,56 +92,94 @@ function getConsent() {
       resolve();
     };
   });
+}
 
+function user_payload(user_info, resolve){
+
+      var headers = new Headers();
+      headers.append("selected_language", user_info.language);
+
+      fetch('/data', { method: 'GET', headers: headers})
+      .then(function(response) {
+          if (response.status !== 200) {
+              displayErrorMessage(ERR_DATA_FAILED + ' ' + response.status + ' ' +
+                  response.statusText);
+          } else {
+              response.text().then(function(text) {
+                select_lang.hidden = true;
+                resolve();
+              });
+          }
+      })
+      .catch(function() {
+          displayErrorMessage(ERR_UPLOAD_FAILED);
+      });
+}
+
+
+function select_language(){
+    return new Promise(function(resolve, reject) {
+    var select_lang = document.querySelector('#select_lang');
+
+    var user_info = JSON.parse(localStorage.getUserInfoGiven);
+    if (user_info.language) {
+      resolve();
+      return;
+    }
+    select_lang.hidden = false;
+    document.querySelector('#english').onclick = function() {
+        user_info.language = 'en-IN';
+        localStorage.getUserInfoGiven = JSON.stringify(user_info);
+        user_payload(user_info, resolve);
+
+    }
+
+    document.querySelector('#hindi').onclick = function() {
+        user_info.language = 'hi-IN';
+        localStorage.getUserInfoGiven = JSON.stringify(user_info);
+        user_payload(user_info, resolve);
+    }
+
+    });
 
 }
 
-//function getUserInfo(){
-//  return new Promise(function(resolve, reject) {
-    // If the user has already send info, then we're done
-//    if (localStorage.getUserInfoGiven) {
-//      resolve();
-//      return;
-//    }
+function getUserInfo(){
+  return new Promise(function(resolve, reject) {
+//     If the user has already send info, then we're done
+    if (localStorage.getUserInfoGiven) {
+      resolve();
+      return;
+    }
 
-    // Otherwise, display the data screen and wait for a response
-//    var dataScreen = document.querySelector('#data-screen');
-//    dataScreen.hidden = false;
-//    document.querySelector("#datasubmit").onclick = function() {
-//      // validate that all controls are selected
-//      var controls = ["#langs1", "#gender", "#age"];
-//      for (var ctl in controls){
-//          if (document.querySelector(controls[ctl]).selectedIndex <= 0) {
-//            document.querySelector("#errorfill").hidden = false;
-//            return;
-//          }
-//      }
-//
-//      var headers = new Headers();
-//      headers.append("gender", document.querySelector('#gender').selectedIndex);
-//      headers.append("age", document.querySelector('#age').selectedIndex);
-//      headers.append("langs1", document.querySelector('#langs1').selectedIndex);
-//      headers.append("langs2", document.querySelector('#langs2').selectedIndex);
-//
-//        fetch('/data', { method: 'GET', headers: headers})
-//      .then(function(response) {
-//          if (response.status !== 200) {
-//              displayErrorMessage(ERR_DATA_FAILED + ' ' + response.status + ' ' +
-//                  response.statusText);
-//          } else {
-//              response.text().then(function(text) {
-//                  localStorage.getUserInfoGiven = JSON.parse(text).uid;
-//              });
-//              dataScreen.hidden = true;
-//              resolve();
-//          }
-//      })
-//      .catch(function() {
-//          displayErrorMessage(ERR_UPLOAD_FAILED);
-//      });
-//    };
-//  });
-//}
+//     Otherwise, display the data screen and wait for a response
+    var dataScreen = document.querySelector('#data-screen');
+
+    dataScreen.hidden = false;
+    document.querySelector("#datasubmit").onclick = function() {
+      // validate that all controls are selected
+
+      if (document.querySelector("#gender").selectedIndex <= 0  ||
+          document.querySelector("#city").value == ""   ||
+          document.querySelector("#age").value <= 0){
+        document.querySelector("#errorfill").hidden = false;
+        return;
+      }
+
+      var data = {
+        gender: document.querySelector('#gender').value,
+        age: document.querySelector('#age').value,
+        city: document.querySelector('#city').value
+      }
+      localStorage.getUserInfoGiven = JSON.stringify(data);
+
+      dataScreen.hidden = true;
+
+      resolve();
+
+    };
+  });
+}
 
 // Use getUserMedia() to get access to the user's microphone.
 // This can fail because the browser does not support it, or
@@ -179,11 +216,6 @@ function rememberMicrophone(stream) {
 // to ask the user to read
 function getSentences() { return fetch('sentences.json').then(function(r) { return r.json(); }); }
 
-//function getLangs(){ return fetch('langs.txt').then( function(r) { return r.text(); }); }
-
-//function populatelangs(langs){
-//  document.querySelector('#langs1').innerHTML = document.querySelector('#langs2').innerHTML = langs;
-//}
 
 // Once we get the json file, break the keys and values into two
 // parallel arrays.
@@ -218,7 +250,7 @@ function displayErrorMessage(error) {
 // screens, and sets up event handlers to switch back and forth between
 // those screens until the user gets tired of making recordings.
 function initializeAndRun() {
-  var totalsess = 0;
+  var total_sentences = 0;
   // Get the DOM elements for the recording and playback screens
   var recordingScreenElement = document.querySelector('#record-screen');
 
@@ -230,6 +262,22 @@ function initializeAndRun() {
   recordingScreenElement.addEventListener('record', function(event) {
     recordingScreen.play(event.detail);
   });
+
+  // finish the session
+    document.querySelector('#finish').onclick = function() {
+        endSession();
+    }
+
+    document.querySelector('#next').onclick = function() {
+        switchToRecordingScreen(true);
+    }
+
+    document.querySelector('#change_language').onclick = function() {
+        var data = JSON.parse(localStorage.getUserInfoGiven);
+        delete data.language;
+        localStorage.getUserInfoGiven = JSON.stringify(data);
+        location.reload();
+    }
 
   // If the user clicks 'Upload' on the playback screen, do the upload
   // and switch back to the recording screen for a new sentence
@@ -247,20 +295,15 @@ function initializeAndRun() {
   // Here's how we switch to the recording screen
   function switchToRecordingScreen(needNewSentence) {
     // Pick a random sentence if we don't have one or need a new one
-    if (needNewSentence || !currentSentence || currentSentence !== 'undefined') {
-      if(n < sentences.length-1)
+    if (needNewSentence || !currentSentence || currentSentence !== undefined) {
+      if(sentence_index < sentences.length - 1)
       {
-        n++;
-        currentSentence = sentences[n];
-        currentDirectory = directories[n];
+        sentence_index++;
+        currentSentence = sentences[sentence_index];
+        currentDirectory = directories[sentence_index];
         // Hide the playback screen (and release its audio) if it was displayed
         // Show the recording screen
         recordingScreen.show(currentSentence);
-      }
-      else{
-
-            endSession();  // call this when all given text is over
-
       }
     }
 
@@ -268,7 +311,7 @@ function initializeAndRun() {
 
   function endSession(){
     document.querySelector("#record-screen").hidden = true;
-    document.querySelector('#lastMessage').innerHTML = "Thank You for your contribution. Submitted Recordings this Session: " + (totalsess+1);
+    document.querySelector('#lastMessage').innerHTML = "Thank You for your contribution. We Recorded " + total_sentences + " recording successfully this Session";
     localStorage.clear(); // ask for consent again when user starts a new session
   }
 
@@ -281,8 +324,9 @@ function initializeAndRun() {
     }
 
     var headers = new Headers();
-    headers.append("uid", localStorage.getUserInfoGiven);
-    headers.append("sentence", currentSentence);
+
+    headers.append("user_data", localStorage.getUserInfoGiven);
+    headers.append("sentence", encodeURI(currentSentence));
 
 
     fetch('/upload/' + directory, { method: 'POST', headers, body: recording })
@@ -292,9 +336,13 @@ function initializeAndRun() {
                               response.statusText);
         } else {
           // sum one
-          totalsess++;
-          document.querySelector('#submitted').innerHTML = "Submitted Recordings this Session: " + totalsess;
+          total_sentences++;
+          document.querySelector('#submitted').innerHTML = "Submitted Recordings this Session: " + total_sentences;
           recordingScreen.discards();
+
+          if(sentence_index == sentences.length-1){
+            endSession();
+          }
         }
       })
       .catch(function() {
@@ -327,7 +375,9 @@ function RecordingScreen(element, microphone) {
   };
 
   this.discards = function() {
-    element.querySelector('#submitimg').src = "imgs/CheckMark-off.png";
+    element.querySelector('#playing').src = "imgs/Triangle-09-off.png";
+    element.querySelector('#submiting').src = "imgs/CheckMark-off.png";
+    document.querySelector('#lblplay').style.color = "rgb(188,189,192)";
     document.querySelector('#lblsubmit').style.color = "rgb(188,189,192)";
 
     canuploadandplay = false;
@@ -377,6 +427,7 @@ function RecordingScreen(element, microphone) {
   var lastSoundTime;      // When was the last time we heard a sound?
 
   var recordButton = element.querySelector('#recordButton');
+  var playButton = element.querySelector('#playButton');
   var uploadButton = element.querySelector('#uploadButton');
   var canuploadandplay = false;
 
@@ -467,9 +518,11 @@ function RecordingScreen(element, microphone) {
         });
       recorder.clear();
 
+      document.querySelector('#lblplay').style.color = "rgb(0,174,239)";
       document.querySelector('#lblsubmit').style.color = "rgb(0,174,239)";
       document.querySelector('#divanim').className = 'stopped-indicator';
-      element.querySelector('#submitimg').src = "imgs/CheckMark-on.png";
+      element.querySelector('#playing').src = "imgs/Triangle-09-on.png";
+      element.querySelector('#submiting').src = "imgs/CheckMark-on.png";
     }
   }
 
@@ -586,6 +639,12 @@ function RecordingScreen(element, microphone) {
     if (!canuploadandplay)
       return;
     element.dispatchEvent(new CustomEvent('upload', {detail: this.recording}));
+  }.bind(this));
+
+  playButton.addEventListener('click', function() {
+    if (!canuploadandplay)
+          return;
+    this.player.play();
   }.bind(this));
 
 // CLOCK!

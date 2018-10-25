@@ -2,36 +2,29 @@ var fs = require('fs');
 
 var uploaddir = __dirname + '/uploads';  // Upload directory
 var directoryToSentence = {};            // dirname to sentence
-var language;
 
 // Here's the program:
-readConfigFile();
 startServer();
-
 /*
  * Synchronous startup stuff before we start handling requests.
  * This reads the sentences.txt configuration file, creates directories
  * as needed, and figures out the next file number in each directory.
  */
-function readConfigFile() {
-  var configFile = __dirname + '/screenplays.txt';
+function readConfigFile(lang_config_file) {
+  var configFile = __dirname + '/' +lang_config_file;
   var totalItems = 0;
   try {
     fs.readFileSync(configFile, 'utf8')
       .trim()
       .split('\n')
       .forEach(function(line) {
-        if(totalItems == 0)
-        {
-            language = line.trim();
+        var trimmed = line.trim();
+        if (trimmed === '' || trimmed[0] === '#') {
+          return;  // ignore blanks and comments
         }
-        else{
-            var trimmed = line.trim();
-            if (trimmed === '' || trimmed[0] === '#') {
-              return;  // ignore blanks and comments
-            }
-        }
+
         directoryToSentence[totalItems++] = trimmed;
+        //directories.push(directory);
       });
   }
   catch(e) {
@@ -48,12 +41,13 @@ function readConfigFile() {
 }
 
 function startServer() {
-  var LEX = require('letsencrypt-express')/*.testing()*/;
-  var http = require('http');
-  var https = require('spdy');
-  var express = require('express');
-  var bodyParser = require('body-parser');
-  var AWS = require('aws-sdk')
+  const LEX = require('letsencrypt-express')/*.testing()*/;
+  const http = require('http');
+  const https = require('spdy');
+  const express = require('express');
+  const bodyParser = require('body-parser');
+  const AWS = require('aws-sdk')
+  const uuidv4 = require('uuid/v4');
 
 //  var sqlite3 = require('sqlite3').verbose();
 
@@ -68,70 +62,9 @@ function startServer() {
     console.error("Exiting");
     process.exit(1);
   }
-    //TODO: if need arise for storing user data in sqlite db
-//  var db = new sqlite3.Database(config.db,  (err) => {
-//    if (err) {
-//      console.error(err.message);
-//
-//    } else {
-//      console.log('Connected to the user database.');
-//
-//      let sql = `SELECT * FROM users`;
-//
-//        db.all(sql, [], (err, rows) => {
-//          if (err) {
-//            console.log(err + "\n Creating one ...") ;
-//            db.serialize(function() {
-//                var stmt = db.prepare(
-//                  "CREATE TABLE users ( "+
-//                  "id integer PRIMARY KEY,"+
-//                  "gender text NOT NULL,"+
-//                  "age text NOT NULL,"+
-//                  "lang1 text NULL," +
-//                  "lang2 text NULL)");
-//                stmt.run();
-//                stmt.finalize();
-//            });
-//          } else {
-//            console.log('Table user exists') ;
-//          }
-//          // rows.forEach((row) => {
-//          //   console.log(row);
-//          // });
-//
-//        });
-
-
-
-
-    //   db.serialize(function() {
-    //     var stmt = db.prepare(
-    //       "CREATE TABLE users ( "+
-    //       "id integer PRIMARY KEY,"+
-    //       "gender text NOT NULL,"+
-    //       "age text NOT NULL,"+
-    //       "lang1 text NULL," +
-    //       "lang2 text NULL)");
-    //     stmt.run();
-    //     stmt.finalize();
-    // });
-
-//    }
-//  });
-  // var db = new sqlite3.Database(':memory:');
 
   var lex = LEX.create({
     configDir: __dirname + '/letsencrypt.conf',
-    // approveRegistration: function (hostname, approve) {
-    //   console.log("approveRegistration:", hostname);
-    //   if (hostname === config.letsEncryptHostname) {
-    //     approve(null, {
-    //       domains: [config.letsEncryptHostname],
-    //       email: config.letsEncryptEmailAddress,
-    //       agreeTos: true
-    //     });
-    //   }
-    // }
   });
 
   var app = express();
@@ -155,11 +88,10 @@ function startServer() {
   app.post('/upload/:dir', function(request, response) {
     // user id
     var uid = Math.floor(Math.random() * Date.now())
-    // the folder we should write is the sentence hash
-    var dir = request.params.dir;
-    // the sentence itself
-    var sentence = request.headers.sentence
+    var data = JSON.parse(request.headers.user_data);
 
+    // the sentence itself
+    var sentence = decodeURI(request.headers.sentence);
     var extension = '.ogg';  // Firefox gives us opus in ogg
     if (request.headers['content-type'].startsWith('audio/webm')) {
       extension = '.webm';   // Chrome gives us opus in webm
@@ -168,83 +100,29 @@ function startServer() {
     } else if (request.headers['content-type'].startsWith('audio/wav')) {
       extension = '.wav'; // iOS gives us mp4a
     }
+    var language = data.language;
 
-    // if the folder does not exist, we create it
-    var folder = uploaddir + "/" + dir + "/";
-    if (!fs.existsSync(folder)) {
-      fs.mkdirSync(folder);
-      fs.writeFileSync(folder + '/sentence.txt', sentence);
-    }
+    data.text = sentence;
 
-    var bucketName = process.env.BUCKET_NAME;
-    var api_key = process.env.AWS_ACCESS_KEY;
-    var secretKey= process.env.AWS_ACCESS_SECRET;
-
-    var s3_path = language+'/' + dir
-    var key = s3_path + '/' + uid + extension;
-    var sentence_key = s3_path + '/sentence.txt';
+    saveInS3(AWS, uuidv4, request.body, language, extension, data);
+    response.send("Uploaded Successfully!")
 
 
-
-    var s3 = new AWS.S3({
-        accessKeyId: api_key,
-        secretAccessKey: secretKey,
-    });
-
-  var params = [{
-            Bucket: bucketName,
-            Key: sentence_key,
-            Body: sentence
-        },
-        {
-            Bucket: bucketName,
-            Key: key,
-            Body: request.body
-        }];
-
-        for(var i=0;i<params.length;i++)
-        {
-            s3.putObject(params[i], function (perr, pres) {
-            if (perr) {
-                console.log("Error uploading data: ", perr);
-            } else {
-                console.log("Successfully uploaded data to myBucket/myKey");
-            }
-        });
-        }
-    var path = folder  + uid  + extension;
-    fs.writeFile(path, request.body, {}, function(err) {
-      response.send('Thanks for your contribution!');
-      if (err) {
-       return console.warn(err);
-      }
-      else {
-
-        console.log('wrote file:', path);
-      }
-    });
   });
 
-    //TODO: if need arise for storing user data in sqlite db
-//  app.get('/data/', function(request,response) {
-//      db.serialize(function() {
-//          var id = Math.floor(Math.random() * Date.now() * (request.headers.gender + request.headers.age + request.headers.langs1 + request.headers.langs2));
-//          var stmt = db.prepare("INSERT INTO users VALUES (?,?,?,?,?)");
-//          stmt.run(id, request.headers.gender, request.headers.age, request.headers.langs1, request.headers.langs2);
-//          stmt.finalize();
-//          console.log(id + ' ' + request.headers.gender+ '  ' +  request.headers.age+ '  ' +  request.headers.langs1+ '  ' +  request.headers.langs2);
-//          response.send({ uid: id });
-//      });
-//  });
+  app.get('/data/', function(request,response) {
 
-//    app.get('/data/ios', function(request,response) {
-//        db.serialize(function() {
-//            var stmt = db.prepare("INSERT INTO users VALUES (?,?,?,?,?)");
-//            stmt.run(request.headers.id, request.headers.gender, request.headers.age, request.headers.langs1, request.headers.langs2);
-//            stmt.finalize();
-//            response  .send({ uid: request.headers.id });
-//        });
-//    });
+          language = request.headers.selected_language;
+          if(language == 'en-IN'){
+           lang_config_file = "english.txt";
+          }
+          else if (language == 'hi-IN'){
+            lang_config_file = "hindi.txt";
+          }
+          readConfigFile(lang_config_file);
+          response.send(lang_config_file);
+  });
+
 
   // In test mode, just run the app over http to localhost:8000
   if (process.argv[2] === 'test') {
@@ -268,4 +146,51 @@ function startServer() {
     .listen(config.httpsPort || 443);
 }
 
+function saveInS3(AWS, uuidv4, audio_file, language, extension, data) {
 
+    var date = new Date();
+    var day = date.getDate().toString();
+    var month = (date.getMonth() + 1) < 10 ? "0"+(date.getMonth() + 1).toString() : (date.getMonth() + 1).toString();
+    var year = date.getFullYear().toString();
+    var bucketName = process.env.BUCKET_NAME;
+    var api_key = process.env.AWS_ACCESS_KEY;
+    var secretKey= process.env.AWS_ACCESS_SECRET;
+    var uuid  = uuidv4();
+    var date_string = year+month+day;
+
+    var path = process.env.S3_PATH;
+    var s3_path = path+language +"/" + date_string + "/";
+    var audio_key = s3_path + uuid + extension;
+    var user_metadata_key = s3_path + uuid + ".json";
+
+
+    console.log(audio_key, user_metadata_key);
+    var s3 = new AWS.S3({
+        accessKeyId: api_key,
+        secretAccessKey: secretKey,
+    });
+
+  var params = [
+        {
+            Bucket: bucketName,
+            Key: audio_key,
+            Body: audio_file
+        },
+        {
+            Bucket: bucketName,
+            Key: user_metadata_key,
+            Body: JSON.stringify(data)
+        }];
+
+        for(var i=0;i<params.length;i++)
+        {
+            s3.putObject(params[i], function (perr, pres) {
+            if (perr) {
+                console.log("Error uploading data: ", perr);
+            } else {
+                console.log("Successfully uploaded data to data");
+            }
+                });
+        }
+
+}

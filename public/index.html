@@ -41,61 +41,58 @@
 
     </div>
 
-    <!--<div id="data-screen" class="screen" hidden>-->
-      <!--<div id="header" class="title">-->
-        <!--A Little About You.-->
-      <!--</div>-->
-      <!--<p>Please fill out the information below to help categorize your voice.</p>-->
-      <!--<div id="tbldata2">-->
-          <!--<div>-->
-              <!--<span>Gender</span>-->
-              <!--<span>Age</span>-->
-          <!--</div>-->
-          <!--<div>-->
-            <!--<span>-->
-              <!--<select class="soflow" id="gender">-->
-                    <!--<option>Select one</option>-->
-                    <!--<option>Male</option>-->
-                    <!--<option>Female</option>-->
-                    <!--<option>Other</option>-->
-              <!--</select>-->
-            <!--</span>-->
-            <!--<span>-->
-              <!--<select class="soflow" id="age">-->
-                    <!--<option>Select one</option>-->
-                    <!--<option>14-18</option>-->
-                    <!--<option>19-25</option>-->
-                    <!--<option>26-30</option>-->
-                    <!--<option>31-40</option>-->
-                    <!--<option>41-50</option>-->
-                    <!--<option>51-60</option>-->
-                    <!--<option>+60</option>-->
-              <!--</select>-->
-            <!--</span>-->
-          <!--</div>-->
-          <!--<div>-->
-            <!--<span>Native Language</span>-->
-            <!--<span>Secondary Language (optional)</span>-->
-          <!--</div>-->
-          <!--<div>-->
-            <!--<span>-->
-              <!--<select class="soflow" id="langs1"></select>-->
-            <!--</span>-->
-            <!--<span>-->
-              <!--<select class="soflow" id="langs2"></select>-->
-            <!--</span>-->
-          <!--</div>-->
-          <!--<div>-->
-              <!--<span></span>-->
-              <!--<span>-->
-            <!--</span>-->
-          <!--</div>-->
-        <!--</div>-->
-        <!--<div id="datasubmit" class="btn continuedata">Continue</div>-->
+    <div id="data-screen" class="screen" hidden>
+      <div id="header" class="title">
+        A Little About You.
+      </div>
+      <p>Please fill out the information below to help categorize your voice.</p>
+      <div id="tbldata2">
+          <div>
+              <span>Gender</span>
+              <span>Age</span>
+          </div>
+          <div>
+            <span>
+              <select class="soflow" id="gender">
+                    <option>Select one</option>
+                    <option>Male</option>
+                    <option>Female</option>
+                    <option>Other</option>
+              </select>
+            </span>
 
-        <!--<span id="errorfill" hidden>Please, fill the form before continue.</span>-->
-    <!--</div>-->
+              <input type="number" id="age" required>
+
+          </div>
+          <div>
+
+
+          </div>
+          <div>
+            <span>Enter the city</span>
+          </div>
+          <div>
+            <input type="text" id="city" required>
+          </div>
+          <div>
+              <span></span>
+              <span>
+            </span>
+          </div>
+        </div>
+        <div id="datasubmit" class="btn continuedata">Continue</div>
+
+        <span id="errorfill" hidden>Please, fill the form before continue.</span>
+    </div>
     <h1 id="lastMessage"></h1>
+
+     <div id="select_lang" class="screen" hidden>
+         <h1>Select the language</h1>
+         <div id="english" class="btn continuedata">English</div>
+         <div id="hindi" class="btn continuedata">Hindi</div>
+      </div>
+
+
     <div id="record-screen" class="screen" hidden>
       <div id="instructions">
         <div class="title">Record your Voice </div>
@@ -109,15 +106,31 @@
           <div id="recordButton">
               <div id="divanim" class="stopped-indicator"></div>
               <div id="lblrecord"></div></div>
+          <div id="playButton">
+              <div style="float:left">
+                <img id="playing" src="imgs/Triangle-09-off.png">
+              </div>
+              <div id="lblplay">Play</div>
+          </div>
           <div id="uploadButton">
               <div>
-                <img id="submitimg" src="imgs/CheckMark-off.png">
+                <img id="submiting" src="imgs/CheckMark-off.png">
               </div>
               <div id="lblsubmit">Submit</div>
           </div>
-            <div id="stopRecording">
+            <div id="finish">
             <div>
-                <img src="imgs/circle.png">
+                <p>Finish</p>
+            </div>
+                </div>
+            <div id="next">
+            <div>
+                <p>Next/Skip sentence</p>
+            </div>
+                </div>
+            <div id="change_language">
+            <div>
+                <p>Go back to change language</p>
             </div>
                 </div>
         </div>
@@ -129,7 +142,7 @@
       </div><br>
       <p class="submitted" id="submitted">Submitted Recordings this Session: 0</p>
       <!-- hidden stuff -->
-      <input id="sensitivity" type="range" min="1" max="200"></input>
+      <input id="sensitivity" type="range" min="1" max="200">
       <audio id="player" controls></audio><br/>
     </div>
     <div id="error-screen" class="screen" hidden>
